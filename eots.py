@@ -1,4 +1,9 @@
-def compute_eot(cube,region,neot=3):    
+def find_nearest(array,value):
+    import numpy as np
+    idx = (np.abs(array-value)).argmin()
+    return idx
+
+def compute_eot(cube,region,neot=3,forced_pts=None):    
     from scipy.stats import linregress
     import iris
     import numpy as np
@@ -37,8 +42,21 @@ def compute_eot(cube,region,neot=3):
     eot_ts=np.empty((neot,nt),dtype=np.float)
     eot_patt=np.empty((neot,nlat,nlon),dtype=np.float)
     eot_x=[]
-    eot_y=[]    
+    eot_y=[]
+    if forced_pts is None:
+        for eot in range(neot):
+            eot_x.append(None)
+            eot_y.append(None)
+    else:
+        my_neot=0
+        for forced_lon,forced_lat in forced_pts:
+            eot_x.append(find_nearest(lon,forced_lon))
+            eot_y.append(find_nearest(lat,forced_lat))
+            eot_lat[my_neot] = forced_lat
+            eot_lon[my_neot] = forced_lon
+            my_neot += 1
 
+    my_neot = 0
     while my_neot < neot:
         # Compute area average
         region_cube_aavg = region_cube.collapsed(['latitude','longitude'],
@@ -46,19 +64,27 @@ def compute_eot(cube,region,neot=3):
         if my_neot == 0:
             orig_aavg = region_cube_aavg.copy()
             # Find, by brute force, the point with the highest correlation with the area average
-        max_corr=-999
-        for y,latpt in enumerate(lat):
-            for x,lonpt in enumerate(lon):
-                corr = np.ma.corrcoef(region_cube_aavg.data,region_cube.data[:,y,x])[0,1]
-                if corr > max_corr and corr is not np.nan:
-                    eot_lat[my_neot]=latpt
-                    this_eoty=y
-                    eot_lon[my_neot]=lonpt
-                    this_eotx=x
-                    eot_ts[my_neot,:]=region_cube.data[:,y,x]
-                    max_corr = corr
-        eot_y.append(this_eoty)
-        eot_x.append(this_eotx)
+        print(eot_x[my_neot],eot_y[my_neot])
+        if eot_x[my_neot] is None and eot_y[my_neot] is None:
+            print('EOTs: Searching for EOT '+str(my_neot+1))
+            max_corr=-999
+            for y,latpt in enumerate(lat):
+                for x,lonpt in enumerate(lon):
+                    corr = np.ma.corrcoef(region_cube_aavg.data,region_cube.data[:,y,x])[0,1]
+                    if corr > max_corr and corr is not np.nan:
+                        eot_lat[my_neot]=latpt
+                        this_eoty=y
+                        eot_lon[my_neot]=lonpt
+                        this_eotx=x
+                        eot_ts[my_neot,:]=region_cube.data[:,y,x]
+                        max_corr = corr
+            eot_y[my_neot]=this_eoty
+            eot_x[my_neot]=this_eotx
+        else:
+            this_eoty = eot_y[my_neot]
+            this_eotx = eot_x[my_neot]
+            max_corr = np.ma.corrcoef(region_cube_aavg.data,region_cube.data[:,this_eoty,this_eotx])[0,1]
+            
             
         # Print location of base point
         print('EOTs: EOT '+str(my_neot+1)+' base point is '+str(eot_lat[my_neot])+'N, '+str(eot_lon[my_neot])+' E with correlation '+str(max_corr))
@@ -77,9 +103,9 @@ def compute_eot(cube,region,neot=3):
                 else:
                     m,c,r,p,s = linregress(region_cube.data[:,this_eoty,this_eotx],region_cube.data[:,y,x])
                     region_cube.data[:,y,x] = region_cube.data[:,y,x]-m*region_cube.data[:,this_eoty,this_eotx]
-        for i in range(len(eot_x)):
+        for i in range(my_neot):
             region_cube.data[:,eot_y[i],eot_x[i]]=0
-        my_neot=my_neot+1
+        my_neot += 1
 	
 	# Create iris cubes of data to return
     lat_coord = region_cube.coord('latitude')
@@ -94,13 +120,12 @@ def compute_eot(cube,region,neot=3):
     return eot_patt_cube,eot_ts_cube,eot_lon_cube,eot_lat_cube
 
 if __name__ == "__main__":
-    from concatenate_bystash import load_ts
     import iris
     # Load timeseries of rainfall
-    precip = load_ts('/gws/nopw/j04/klingaman/metum/u-be362/aps','m01s05i216',1982,2011,['djf','mam','jja','son'])
+    precip = iris.load_cube('/media/nick/lacie_tb3/metum/u-be408/m01s05i216_1982-2011_jan-dec.nc','precipitation_flux')
     
     # Compute first three EOTs for Australia
-    eot_patt,eot_ts,eot_lon,eot_lat = compute_eot(precip,[110,160,-50,-10])
+    eot_patt,eot_ts,eot_lon,eot_lat = compute_eot(precip,[110,160,-50,-10]) #,forced_pts=[(130,-20),(125,-15),(135,-25)])
 
     # Save result
     iris.save([eot_patt,eot_ts,eot_lon,eot_lat],'eot.nc')
