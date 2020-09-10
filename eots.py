@@ -55,6 +55,10 @@ def compute_eot(cube,region,neot=3,forced_pts=None):
             eot_lat[my_neot] = forced_lat
             eot_lon[my_neot] = forced_lon
             my_neot += 1
+        if my_neot < neot:
+            for eot in range(my_neot,neot):
+                eot_x.append(None)
+                eot_y.append(None)
 
     my_neot = 0
     while my_neot < neot:
@@ -64,7 +68,6 @@ def compute_eot(cube,region,neot=3,forced_pts=None):
         if my_neot == 0:
             orig_aavg = region_cube_aavg.copy()
             # Find, by brute force, the point with the highest correlation with the area average
-        print(eot_x[my_neot],eot_y[my_neot])
         if eot_x[my_neot] is None and eot_y[my_neot] is None:
             print('EOTs: Searching for EOT '+str(my_neot+1))
             max_corr=-999
@@ -125,7 +128,7 @@ if __name__ == "__main__":
     precip = iris.load_cube('/media/nick/lacie_tb3/metum/u-be408/m01s05i216_1982-2011_jan-dec.nc','precipitation_flux')
     
     # Compute first three EOTs for Australia
-    eot_patt,eot_ts,eot_lon,eot_lat = compute_eot(precip,[110,160,-50,-10]) #,forced_pts=[(130,-20),(125,-15),(135,-25)])
+    eot_patt,eot_ts,eot_lon,eot_lat = compute_eot(precip,[110,160,-50,-10],neot=5,forced_pts=[(130,-20),(125,-15),(135,-25)])
 
     # Save result
     iris.save([eot_patt,eot_ts,eot_lon,eot_lat],'eot.nc')
