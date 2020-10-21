@@ -74,7 +74,7 @@ def compute_eot(cube,region,neot=3,forced_pts=None):
             for y,latpt in enumerate(lat):
                 for x,lonpt in enumerate(lon):
                     corr = np.ma.corrcoef(region_cube_aavg.data,region_cube.data[:,y,x])[0,1]
-                    if corr > max_corr and corr is not np.nan:
+                    if corr > max_corr and corr is not np.nan and corr is not np.ma.masked:
                         eot_lat[my_neot]=latpt
                         this_eoty=y
                         eot_lon[my_neot]=lonpt
@@ -121,14 +121,3 @@ def compute_eot(cube,region,neot=3,forced_pts=None):
     eot_lat_cube = iris.cube.Cube(data=eot_lat,dim_coords_and_dims=[(eot_coord,0)],var_name='eot_lat',long_name='latitude of EOT base points',units='degrees_north')
 
     return eot_patt_cube,eot_ts_cube,eot_lon_cube,eot_lat_cube
-
-if __name__ == "__main__":
-    import iris
-    # Load timeseries of rainfall
-    precip = iris.load_cube('/media/nick/lacie_tb3/metum/u-be408/m01s05i216_1982-2011_jan-dec.nc','precipitation_flux')
-    
-    # Compute first three EOTs for Australia
-    eot_patt,eot_ts,eot_lon,eot_lat = compute_eot(precip,[110,160,-50,-10],neot=5,forced_pts=[(130,-20),(125,-15),(135,-25)])
-
-    # Save result
-    iris.save([eot_patt,eot_ts,eot_lon,eot_lat],'eot.nc')
